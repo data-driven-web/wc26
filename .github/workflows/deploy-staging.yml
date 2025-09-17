@@ -14,28 +14,40 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Start SSH agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.STAGING_SSH_KEY }}
-
-      - name: Add server to known_hosts
+      # Write the private key from the secret to a file and trust the host
+      - name: Prepare SSH
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.STAGING_HOST }} >> ~/.ssh/known_hosts
+          echo "${{ secrets.STAGING_SSH_KEY }}" > ~/.ssh/wc26.key
+          chmod 600 ~/.ssh/wc26.key
+          ssh-keyscan -T 20 -H ${{ secrets.STAGING_HOST }} >> ~/.ssh/known_hosts || true
 
-      - name: Create release archive in parent directory
+      # Create a clean archive (in parent to avoid catching itself)
+      - name: Create release archive
         run: tar -czf ../release.tgz --exclude .git --exclude .github .
 
+      # Upload using ONLY our key
       - name: Upload release archive
-        run: scp ../release.tgz ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}:${{ secrets.STAGING_PATH }}/release.tgz
-
-      - name: Deploy on server
         run: |
-          ssh ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} << 'EOF'
-            cd ${{ secrets.STAGING_PATH }}
-            tar -xzf release.tgz
-            rm -f release.tgz
-            chmod +x ops/*.sh || true
-            ./ops/post_deploy.sh '${{ secrets.STAGING_PHP }}'
-          EOF
+          scp -i ~/.ssh/wc26.key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ../release.tgz \
+              ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}:${{ secrets.STAGING_PATH }}/release.tgz
+
+      # Unpack and run post-deploy on server
+      - name: Unpack + post-deploy on server
+        run: |
+          ssh -i ~/.ssh/wc26.key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} << 'EOSSH'
+                set -e
+                cd /home4/enhancz4/public_html/website_ed220d02/staging/8628
+                tar -xzf release.tgz
+                rm -f release.tgz
+                chmod +x ops/*.sh || true
+                ./ops/post_deploy.sh '/usr/local/bin/php' || true
+          EOSSH
