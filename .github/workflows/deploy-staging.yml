@@ -8,7 +8,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -20,14 +19,20 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.STAGING_SSH_KEY }}
 
+      # PRE-TRUST the server host key to avoid "Host key verification failed"
+      - name: Trust server host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -T 20 -H ${{ secrets.STAGING_HOST }} >> ~/.ssh/known_hosts
+
       - name: Rsync code to server
         run: |
           RSYNC_FLAGS="-az --delete --omit-dir-times --no-perms --exclude .git/ --exclude .github/"
-          rsync $RSYNC_FLAGS ./ enhancz4@162.241.253.66:/home4/enhancz4/public_html/website_ed220d02/staging/8628/
+          rsync $RSYNC_FLAGS -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" ./ ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}:${{ secrets.STAGING_PATH }}/
 
       - name: Post-deploy (cache flush, rewrites, health)
         run: |
-          ssh -o StrictHostKeyChecking=no enhancz4@162.241.253.66 "\
-            cd /home4/enhancz4/public_html/website_ed220d02/staging/8628 && \
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} "\
+            cd ${{ secrets.STAGING_PATH }} && \
             chmod +x ops/*.sh || true && \
-            ./ops/post_deploy.sh '/usr/local/bin/php' || true"
+            ./ops/post_deploy.sh '${{ secrets.STAGING_PHP }}' || true"
