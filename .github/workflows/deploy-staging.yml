@@ -24,11 +24,11 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -H ${{ secrets.STAGING_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Create release archive
-        run: tar -czf release.tgz --exclude .git --exclude .github --exclude release.tgz .
+      - name: Create release archive in parent directory
+        run: tar -czf ../release.tgz --exclude .git --exclude .github .
 
       - name: Upload release archive
-        run: scp release.tgz ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}:${{ secrets.STAGING_PATH }}/
+        run: scp ../release.tgz ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}:${{ secrets.STAGING_PATH }}/release.tgz
 
       - name: Deploy on server
         run: |
