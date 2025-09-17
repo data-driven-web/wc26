@@ -1,0 +1,33 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [ "staging-from-main" ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.STAGING_SSH_KEY }}
+
+      - name: Rsync code to server
+        run: |
+          RSYNC_FLAGS="-az --delete --omit-dir-times --no-perms --exclude .git/ --exclude .github/"
+          rsync $RSYNC_FLAGS ./ enhancz4@162.241.253.66:/home4/enhancz4/public_html/website_ed220d02/staging/8628/
+
+      - name: Post-deploy (cache flush, rewrites, health)
+        run: |
+          ssh -o StrictHostKeyChecking=no enhancz4@162.241.253.66 "\
+            cd /home4/enhancz4/public_html/website_ed220d02/staging/8628 && \
+            chmod +x ops/*.sh || true && \
+            ./ops/post_deploy.sh '/usr/local/bin/php' || true"
