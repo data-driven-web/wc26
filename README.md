@@ -22,4 +22,4 @@ This repository contains the full WordPress setup for WC26 with a clean, modular
   post_deploy.sh         # Cache + rewrite flush, health checks
   drift_check.sh         # Compares plugin/theme versions vs lock
 
-wp-cli.yml               # CLI aliases for staging/prod
+wp-cli.yml               # CLI aliases for staging/prod 
