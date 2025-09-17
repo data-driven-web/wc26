@@ -25,10 +25,19 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -T 20 -H ${{ secrets.STAGING_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Rsync code to server
+      - name: Create release archive
+        run: tar -czf release.tgz --exclude .git --exclude .github .
+
+      - name: Upload via scp
+        run: scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null release.tgz ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}:${{ secrets.STAGING_PATH }}/
+
+      - name: Unpack + post-deploy
         run: |
-          RSYNC_FLAGS="-az --delete --omit-dir-times --no-perms --exclude .git/ --exclude .github/"
-          rsync $RSYNC_FLAGS -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" ./ ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}:${{ secrets.STAGING_PATH }}/
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} "\
+            cd ${{ secrets.STAGING_PATH }} && \
+            tar -xzf release.tgz && rm -f release.tgz && \
+            chmod +x ops/*.sh || true && \
+            ./ops/post_deploy.sh '${{ secrets.STAGING_PHP }}' || true"
 
       - name: Post-deploy (cache flush, rewrites, health)
         run: |
